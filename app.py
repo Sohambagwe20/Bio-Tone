@@ -3,13 +3,20 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 import os
+import random
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'biotone-secret-key-2026'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///biotone.db'
+import os
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///biotone.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+MAIL_EMAIL = os.environ.get('MAIL_EMAIL')
+MAIL_PASSWORD = os.environ.get('MAIL_PASSWORD')
 
 db = SQLAlchemy(app)
 login_manager = LoginManager(app)
@@ -20,7 +27,10 @@ analyzer = SentimentIntensityAnalyzer()
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
+    email = db.Column(db.String(120), unique=True, nullable=False)
     password = db.Column(db.String(200), nullable=False)
+    otp = db.Column(db.String(6), nullable=True)
+    otp_expiry = db.Column(db.DateTime, nullable=True)
     entries = db.relationship('MoodEntry', backref='user', lazy=True)
 
 class MoodEntry(db.Model):
@@ -61,6 +71,40 @@ def check_crisis(entries):
     if len(entries) < 3:
         return False
     return all(e.level == 'High Stress' for e in entries[:3])
+
+def send_otp_email(to_email, otp):
+    msg = MIMEMultipart()
+    msg['From'] = MAIL_EMAIL
+    msg['To'] = to_email
+    msg['Subject'] = 'Bio-Tone — Your OTP Code'
+
+    body = f"""
+    Hi there,
+
+    Your Bio-Tone OTP code is:
+
+    {otp}
+
+    This code expires in 10 minutes.
+    If you didn't request this, ignore this email.
+
+    — Bio-Tone Team
+    """
+    msg.attach(MIMEText(body, 'plain'))
+
+    try:
+        server = smtplib.SMTP('smtp.gmail.com', 587)
+        server.starttls()
+        server.login(MAIL_EMAIL, MAIL_PASSWORD)
+        server.sendmail(MAIL_EMAIL, to_email, msg.as_string())
+        server.quit()
+        return True
+    except Exception as e:
+        print(f"Email error: {e}")
+        return False
+
+def generate_otp():
+    return str(random.randint(100000, 999999))
 
 def get_insight(compound, text):
     words = text.lower().split()
@@ -251,11 +295,15 @@ def history():
 def register():
     if request.method == 'POST':
         username = request.form['username'].strip()
+        email = request.form['email'].strip()
         password = request.form['password'].strip()
         if User.query.filter_by(username=username).first():
             flash('Username already taken. Try another.')
             return redirect(url_for('register'))
-        new_user = User(username=username, password=generate_password_hash(password))
+        if User.query.filter_by(email=email).first():
+            flash('Email already registered. Try logging in.')
+            return redirect(url_for('register'))
+        new_user = User(username=username, email=email, password=generate_password_hash(password))
         db.session.add(new_user)
         db.session.commit()
         login_user(new_user)
@@ -281,19 +329,54 @@ def logout():
     logout_user()
     return redirect(url_for('login'))
 
+@app.route('/forgot-password', methods=['GET', 'POST'])
+def forgot_password():
+    if request.method == 'POST':
+        email = request.form['email'].strip()
+        user = User.query.filter_by(email=email).first()
+        if user:
+            otp = generate_otp()
+            user.otp = otp
+            user.otp_expiry = datetime.now() + timedelta(minutes=10)
+            db.session.commit()
+            success = send_otp_email(email, otp)
+            if success:
+                flash('OTP sent to your email. Check your inbox.')
+                return redirect(url_for('verify_otp', email=email))
+            else:
+                flash('Failed to send email. Try again.')
+        else:
+            flash('No account found with that email.')
+    return render_template('forgot_password.html')
+
+@app.route('/verify-otp/<email>', methods=['GET', 'POST'])
+def verify_otp(email):
+    if request.method == 'POST':
+        entered_otp = request.form['otp'].strip()
+        user = User.query.filter_by(email=email).first()
+        if user and user.otp == entered_otp and user.otp_expiry > datetime.now():
+            user.otp = None
+            user.otp_expiry = None
+            db.session.commit()
+            return redirect(url_for('reset_password', email=email))
+        else:
+            flash('Invalid or expired OTP. Try again.')
+    return render_template('verify_otp.html', email=email)
+
+@app.route('/reset-password/<email>', methods=['GET', 'POST'])
+def reset_password(email):
+    if request.method == 'POST':
+        new_password = request.form['password'].strip()
+        user = User.query.filter_by(email=email).first()
+        if user:
+            user.password = generate_password_hash(new_password)
+            db.session.commit()
+            flash('Password reset successful. Please login.')
+            return redirect(url_for('login'))
+    return render_template('reset_password.html', email=email)
+
 with app.app_context():
     db.create_all()
 
 if __name__ == '__main__':
     app.run(debug=True)
-    
-# ```
-
-# The difference is small but important — `db.create_all()` now runs **outside** the `if __name__` block, so it runs every time the app starts on Render too, not just locally.
-
-# Save the file then run:
-# ```
-# git add .
-# git commit -m "Fix database initialization"
-# git push
-   
