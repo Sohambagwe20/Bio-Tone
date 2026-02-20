@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bio-Tone — Login</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>🧠 Bio-Tone</h1>
+        <p class="subtitle">Welcome back</p>
+
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                <p class="error-msg">{{ messages[0] }}</p>
+            {% endif %}
+        {% endwith %}
+
+        <form action="/login" method="POST">
+            <p class="input-label">Username</p>
+            <input type="text" name="username" placeholder="Enter your username" required>
+
+            <p class="input-label">Password</p>
+            <input type="password" name="password" placeholder="Enter your password" required>
+
+            <button type="submit">Login</button>
+        </form>
+
+        <p class="auth-link">Don't have an account? <a href="/register">Register here</a></p>
+    </div>
+</body>
+</html>

@@ -376,3 +376,61 @@ button:hover {
     font-size: 0.85rem;
     margin-left: 10px;
 }
+
+input[type="text"],
+input[type="password"] {
+    width: 100%;
+    padding: 14px;
+    border: 2px solid #e2e8f0;
+    border-radius: 10px;
+    font-size: 1rem;
+    font-family: 'Segoe UI', sans-serif;
+    outline: none;
+    transition: border 0.2s;
+    color: #2d3748;
+    margin-bottom: 8px;
+}
+
+input[type="text"]:focus,
+input[type="password"]:focus {
+    border-color: #667eea;
+}
+
+.auth-link {
+    margin-top: 20px;
+    color: #718096;
+    font-size: 0.9rem;
+}
+
+.auth-link a {
+    color: #667eea;
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.error-msg {
+    background: #fff5f5;
+    color: #c53030;
+    padding: 10px;
+    border-radius: 8px;
+    margin-bottom: 16px;
+    font-size: 0.9rem;
+}
+.logout-btn {
+    display: inline-block;
+    margin-top: 12px;
+    color: #a0aec0;
+    font-size: 0.85rem;
+    text-decoration: none;
+}
+
+.logout-btn:hover {
+    color: #e53e3e;
+}
+/* ```
+
+Save both files. Then push everything to GitHub:
+```
+git add .
+git commit -m "Add login, register and database"
+git push */
